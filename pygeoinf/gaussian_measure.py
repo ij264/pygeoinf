@@ -645,6 +645,26 @@ class GaussianMeasure:
         cov = self.covariance
         return cov(u)
 
+    def power(self):
+        """
+        Docstring for power
+
+        :param self: Description
+        """
+        if not hasattr(self.domain, "lmax"):
+            raise NotImplementedError(
+                "Power method is not defined for this measure's domain."
+            )
+
+        power = np.zeros(self.domain.lmax + 1)
+
+        expected_grid = self.expectation
+        expected_shcoeffs = expected_grid.expand(normalization='ortho', csphase=-1)
+
+        power = expected_shcoeffs.spectrum(convention='l2norm')
+
+        return power
+
     def __neg__(self) -> GaussianMeasure:
         """Returns a measure with a negated expectation."""
         if self.covariance_factor_set:
