@@ -23,6 +23,8 @@ from .linear_operators import LinearOperator, NormalSumOperator
 from .linear_solvers import LinearSolver, IterativeLinearSolver
 from .hilbert_space import Vector
 from .subspaces import AffineSubspace
+import numpy as np
+from scipy.stats import entropy
 
 
 class LinearBayesianInversion(LinearInversion):
@@ -173,6 +175,38 @@ class LinearBayesianInversion(LinearInversion):
         else:
             return GaussianMeasure(covariance=covariance, expectation=expectation)
 
+    def log_evidence(
+        self,
+        p_samples: Vector,
+        q_samples: Vector,
+        /,
+        *,
+        bins: int = 100,
+    ) -> float:
+        """
+        Returns the log-marginal likelihood of the model.
+
+        Args:
+            p_samples: Samples from the P distribution.
+            q_samples: Samples from the Q distribution.
+            bins: Number of bins for histogram estimation.
+        """
+        all_min = min(np.min(p_samples), np.min(q_samples))
+        all_max = max(np.max(p_samples), np.max(q_samples))
+
+        bin_edges = np.linspace(all_min, all_max, bins)
+
+        p_hist, _ = np.histogram(p_samples, bins=bin_edges, density=True)
+        q_hist, _ = np.histogram(q_samples, bins=bin_edges, density=True)
+
+        epsilon = 1e-10
+        p_hist += epsilon
+        q_hist += epsilon
+
+        p_hist /= p_hist.sum()
+        q_hist /= q_hist.sum()
+
+        return entropy(p_hist, q_hist)
 
 class ConstrainedLinearBayesianInversion(LinearInversion):
     """
