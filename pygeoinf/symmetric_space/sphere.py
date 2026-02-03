@@ -22,7 +22,7 @@ Key Classes
 """
 
 from __future__ import annotations
-from typing import Callable, Any, List, Optional, Tuple, TYPE_CHECKING
+from typing import Callable, Any, List, Optional, Tuple, TYPE_CHECKING, Union
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
@@ -341,6 +341,36 @@ class SphereHelper:
 
         return fig, ax, im
 
+    @staticmethod
+    def plot_2D_histogram(
+        x: np.ndarray,
+        y: np.ndarray,
+        /,
+        title: str = '2D Histogram',
+        xlabel: str = 'X-axis',
+        ylabel: str = 'Y-axis',
+        bins: Union[int, list] = 100,
+        x_scale: str = 'linear',
+        y_scale: str = 'linear',
+        cmap: str = 'viridis',
+        use_log_norm: bool = True,
+        colorbar_label: str = 'Counts',
+    ) -> Tuple[plt.Figure, plt.Axes]:
+        """
+        Plots a 2D histogram of the provided x and y data.
+        """
+        fig, ax = plt.subplots(figsize=(10, 6))
+
+        # We transpose H because histogram2d follows (x, y) but pcolormesh wants (y, x)
+        # pc = ax.pcolormesh(xedges, yedges, H.T, cmap=cmap, norm=LogNorm())
+
+        ax.set_yscale(y_scale)
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+        ax.set_title(title)
+
+        # fig.colorbar(pc, label=colorbar_label)
+        return fig, ax
     # --------------------------------------------------------------- #
     #                         private methods                         #
     # ----------------------------------------------------------------#
