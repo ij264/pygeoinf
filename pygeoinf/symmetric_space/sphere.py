@@ -22,10 +22,12 @@ Key Classes
 """
 
 from __future__ import annotations
-from typing import Callable, Any, List, Optional, Tuple, TYPE_CHECKING, Union
+from typing import Callable, Any, List, Optional, Tuple, TYPE_CHECKING, Union, Dict
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
+from matplotlib.ticker import MaxNLocator
+from matplotlib.colors import LogNorm, Normalize
 import numpy as np
 from scipy.sparse import diags, coo_array
 
@@ -342,34 +344,48 @@ class SphereHelper:
         return fig, ax, im
 
     @staticmethod
-    def plot_2D_histogram(
-        x: np.ndarray,
-        y: np.ndarray,
+    def plot_power_spectrum_2d(
+        data: Union[Dict[int, np.ndarray], np.ndarray],
         /,
+        *,
         title: str = '2D Histogram',
-        xlabel: str = 'X-axis',
-        ylabel: str = 'Y-axis',
+        xlabel: str = 'Spherical Harmonic Degree',
+        ylabel: str = 'Power',
         bins: Union[int, list] = 100,
-        x_scale: str = 'linear',
-        y_scale: str = 'linear',
-        cmap: str = 'viridis',
-        use_log_norm: bool = True,
-        colorbar_label: str = 'Counts',
+        y_range: Tuple[float, float] = (1e-3, 1e1),
+        cmap: str = 'inferno',
     ) -> Tuple[plt.Figure, plt.Axes]:
         """
-        Plots a 2D histogram of the provided x and y data.
+        Plots a 2D histogram from power data.
+
+        Accepts either:
+        1. A dictionary {degree: np.ndarray of power values} for each degree.
+        2. An array (data=power)
         """
-        fig, ax = plt.subplots(figsize=(10, 6))
 
-        # We transpose H because histogram2d follows (x, y) but pcolormesh wants (y, x)
-        # pc = ax.pcolormesh(xedges, yedges, H.T, cmap=cmap, norm=LogNorm())
+        if isinstance(data, dict):
+            degrees = sorted(data.keys())
+            x_final = np.repeat(degrees, [len(data[d]) for d in degrees])
+            y_final = np.concatenate([data[d] for d in degrees])
+        else:
+            x_final, y_final = np.arange(len(data)), data
 
-        ax.set_yscale(y_scale)
+        x_bins = np.arange(x_final.min() - 0.5, x_final.max() + 1.5, 1)
+        y_bins = np.logspace(np.log10(y_range[0]), np.log10(y_range[1]), bins)
+
+        H, xedges, yedges = np.histogram2d(x_final, y_final, bins=[x_bins, y_bins])
+        H = np.ma.masked_where(H == 0, H)
+
+        fig, ax = plt.subplots(figsize=(10, 6), constrained_layout=True)
+        pc = ax.pcolormesh(xedges, yedges, H.T, cmap=cmap, norm=LogNorm(), shading='auto')
+
+        ax.set_yscale('log')
         ax.set_xlabel(xlabel)
         ax.set_ylabel(ylabel)
         ax.set_title(title)
+        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+        fig.colorbar(pc, label='Sample Density')
 
-        # fig.colorbar(pc, label=colorbar_label)
         return fig, ax
     # --------------------------------------------------------------- #
     #                         private methods                         #
