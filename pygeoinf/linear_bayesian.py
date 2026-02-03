@@ -175,7 +175,7 @@ class LinearBayesianInversion(LinearInversion):
         else:
             return GaussianMeasure(covariance=covariance, expectation=expectation)
 
-    def log_evidence(
+    def kl_divergence(
         self,
         p_samples: Vector,
         q_samples: Vector,
@@ -207,6 +207,46 @@ class LinearBayesianInversion(LinearInversion):
         q_hist /= q_hist.sum()
 
         return entropy(p_hist, q_hist)
+
+    def log_evidence(
+        self,
+        data: Vector,
+        solver: LinearSolver,
+        /,
+        *,
+        preconditioner: Optional[LinearOperator] = None,
+    ) -> float:
+        """
+        Returns the log-marginal likelihood (log-evidence) of the model.
+
+        Args:
+            data: The observed data vector.
+            solver: A linear solver for inverting the normal operator.
+            preconditioner: An optional preconditioner.
+        """
+        data_space = self.data_space
+        forward_operator = self.forward_problem.forward_operator
+
+        N = self.normal_operator
+
+        shifted_data = data_space.subtract(
+            data, forward_operator(self.model_prior_measure.expectation)
+        )
+        if self.forward_problem.data_error_measure_set:
+            error_expectation = self.forward_problem.data_error_measure.expectation
+            shifted_data = data_space.subtract(shifted_data, error_expectation)
+
+        if isinstance(solver, IterativeLinearSolver):
+            inverse_N_operator = solver(N, preconditioner=preconditioner)
+        else:
+            inverse_N_operator = solver(N)
+
+        misfit = data_space.inner_product(shifted_data, inverse_N_operator(shifted_data))
+
+        log_det_N = N.log_determinant()
+
+        n = data_space.dimension
+        return -0.5 * (misfit + log_det_N + n * np.log(2 * np.pi))
 
 class ConstrainedLinearBayesianInversion(LinearInversion):
     """
