@@ -30,6 +30,7 @@ from matplotlib.ticker import MaxNLocator
 from matplotlib.colors import LogNorm, Normalize
 import numpy as np
 from scipy.sparse import diags, coo_array
+from .. import configure_threading
 
 try:
     import pyshtools as sh
@@ -345,48 +346,63 @@ class SphereHelper:
 
     @staticmethod
     def plot_power_spectrum_2d(
-        data: Union[Dict[int, np.ndarray], np.ndarray],
-        /,
-        *,
-        title: str = '2D Histogram',
-        xlabel: str = 'Spherical Harmonic Degree',
-        ylabel: str = 'Power',
-        bins: Union[int, list] = 100,
-        y_range: Tuple[float, float] = (1e-3, 1e1),
-        cmap: str = 'inferno',
-    ) -> Tuple[plt.Figure, plt.Axes]:
+    data: Union[Dict[int, np.ndarray], np.ndarray],
+    /,
+    *,
+    title: str = '2D Histogram',
+    xlabel: str = 'Spherical Harmonic Degree',
+    ylabel: str = 'Power',
+    bins: int = 100,
+    y_range: Tuple[float, float] = (1e-3, 1e1),
+    cmap: str = 'inferno',
+) -> Tuple[plt.Figure, plt.Axes]:
         """
         Plots a 2D histogram from power data.
-
-        Accepts either:
-        1. A dictionary {degree: np.ndarray of power values} for each degree.
-        2. An array (data=power)
         """
 
         if isinstance(data, dict):
-            degrees = sorted(data.keys())
+            degrees = np.array(sorted(data.keys()))
+            # Repeat degree for every sample it contains
             x_final = np.repeat(degrees, [len(data[d]) for d in degrees])
             y_final = np.concatenate([data[d] for d in degrees])
-        else:
-            x_final, y_final = np.arange(len(data)), data
 
-        x_bins = np.arange(x_final.min() - 0.5, x_final.max() + 1.5, 1)
-        y_bins = np.logspace(np.log10(y_range[0]), np.log10(y_range[1]), bins)
+            print(degrees)
+        elif isinstance(data, np.ndarray):
+            # data is a matrix of shape (n_samples, n_degrees)
+            n_samples, n_degrees = data.shape
+            degrees = np.arange(n_degrees)
 
+            x_final = np.repeat(degrees, n_samples)
+            y_final = data.flatten(order='F')
+
+        # Define bins
+        x_bins = np.arange(degrees.min() - 0.5, degrees.max() + 1.5, 1)
+        y_bins = np.logspace(np.log10(y_range[0]), np.log10(y_range[1]), bins + 1)
+
+        # Compute 2D Histogram
         H, xedges, yedges = np.histogram2d(x_final, y_final, bins=[x_bins, y_bins])
+
+        # Clean up display: mask zero counts so they don't appear on log color scale
         H = np.ma.masked_where(H == 0, H)
 
+        # Plotting
         fig, ax = plt.subplots(figsize=(10, 6), constrained_layout=True)
+
+        # Use pcolormesh for efficiency with large matrices
         pc = ax.pcolormesh(xedges, yedges, H.T, cmap=cmap, norm=LogNorm(), shading='auto')
 
         ax.set_yscale('log')
         ax.set_xlabel(xlabel)
         ax.set_ylabel(ylabel)
-        ax.set_title(title)
+        ax.set_title(title, fontweight='bold')
+
+        # Ensure only integer degrees on X-axis
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+
         fig.colorbar(pc, label='Sample Density')
 
         return fig, ax
+
     # --------------------------------------------------------------- #
     #                         private methods                         #
     # ----------------------------------------------------------------#
@@ -450,6 +466,31 @@ class SphereHelper:
             coeffs, normalization=self.normalization, csphase=self.csphase
         )
 
+    def _sample_power_measure(self,
+                              measure,
+                              n_samples: int,
+                              /,
+                              *,
+                              parallel: bool = True,
+                              n_jobs: Optional[int] = None) -> np.ndarray:
+        """
+        Calculates power spectrum for a given measure by sampling.
+        """
+        if parallel:
+            configure_threading(n_threads=1)
+        samples = measure.samples(n_samples, parallel=parallel, n_jobs=n_jobs)
+
+        try:
+            powers = [
+                self.to_coefficients(sample).spectrum(convention='l2norm')
+                for sample in samples
+            ]
+        finally:
+            if parallel:
+                configure_threading(-1)
+
+        powers = np.array(powers)
+        return powers
 
 class Lebesgue(SphereHelper, HilbertModule, AbstractInvariantLebesgueSpace):
     """
