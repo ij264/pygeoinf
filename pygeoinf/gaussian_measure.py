@@ -416,7 +416,8 @@ class GaussianMeasure:
             raise ValueError("Number of samples must be a positive integer.")
 
         if not parallel:
-            return [self.sample() for _ in range(n)]
+            from tqdm import tqdm
+            return [self.sample() for _ in tqdm(range(n), desc="Sampling")]
 
         return Parallel(n_jobs=n_jobs)(delayed(self.sample)() for _ in range(n))
 
