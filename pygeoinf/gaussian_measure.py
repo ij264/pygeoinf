@@ -646,6 +646,55 @@ class GaussianMeasure:
         cov = self.covariance
         return cov(u)
 
+    def power_expectation(self):
+        """
+        Docstring for power
+
+        :param self: Description
+        """
+        if not hasattr(self.domain, "lmax"):
+            raise NotImplementedError(
+                "Power method is not defined for this measure's domain."
+            )
+
+        power = np.zeros(self.domain.lmax + 1)
+
+        expected_grid = self.expectation
+        expected_shcoeffs = expected_grid.expand(normalization='ortho', csphase=-1)
+
+        power = expected_shcoeffs.spectrum(convention='l2norm')
+
+        return power
+
+    def power_distribution(self, n_samples=int(1e5)):
+        """
+        Returns the sampled power distribution for a specific spherical harmonic degree.
+        """
+        if not hasattr(self.domain, "lmax"):
+            raise NotImplementedError(
+                "Power method is not defined for this measure's domain."
+            )
+
+        powers = np.zeros((n_samples, self.domain.lmax+1))
+        for degree in range(1, self.domain.lmax + 1):
+            # 1. Map to specific degree coefficients
+            operator_at_specific_degree = self.domain.to_coefficient_operator(
+                lmin=degree, lmax=degree
+            )
+            deg_measure = self.affine_mapping(operator=operator_at_specific_degree)
+
+            # 2. Get explicit stats for sampling
+            mu = deg_measure.expectation
+            cov = deg_measure.covariance.matrix(dense=True)
+
+            # 3. Generate samples in coefficient space
+            samples = np.random.multivariate_normal(mu, cov, size=n_samples)
+
+            # 4. Compute power for each sample
+            powers[:, degree-1] = np.sum(samples**2, axis=1)
+
+        return powers
+
     def __neg__(self) -> GaussianMeasure:
         """Returns a measure with a negated expectation."""
         if self.covariance_factor_set:
