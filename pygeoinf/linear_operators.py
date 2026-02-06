@@ -1577,19 +1577,25 @@ class DiagonalSparseMatrixLinearOperator(SparseMatrixLinearOperator):
 
     @property
     def inverse(self) -> "DiagonalSparseMatrixLinearOperator":
-        """
-        The inverse of the operator, computed via functional calculus.
-        Requires the operator to be strictly diagonal with no zero entries.
-        """
         if not self.is_strictly_diagonal:
             raise NotImplementedError(
                 "Inverse is only implemented for strictly diagonal operators."
             )
 
-        if np.any(self._matrix.diagonal(k=0) == 0):
+        diag_values = self._matrix.diagonal(k=0)
+        if np.any(diag_values == 0):
             raise ValueError("Cannot invert an operator with zeros on the diagonal.")
 
-        return self**-1
+        # Create a new dia_array with inverted values to avoid the proxy loop
+        from scipy.sparse import dia_array
+        inverted_data = 1.0 / self._matrix.data
+
+        return DiagonalSparseMatrixLinearOperator(
+            self.codomain,
+            self.domain,
+            (inverted_data, self._matrix.offsets),
+            galerkin=self.is_galerkin,
+        )
 
     @property
     def sqrt(self) -> "DiagonalSparseMatrixLinearOperator":
@@ -1643,8 +1649,9 @@ class DiagonalSparseMatrixLinearOperator(SparseMatrixLinearOperator):
         For element-wise mathematical functions that return a new operator,
         this method enforces that the operator must be strictly diagonal.
         """
+        if name.startswith('__'):
+            raise AttributeError
         attr = getattr(self._matrix, name)
-
         if callable(attr):
 
             def wrapper(*args, **kwargs):

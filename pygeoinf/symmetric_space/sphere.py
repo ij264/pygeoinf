@@ -349,6 +349,7 @@ class SphereHelper:
     data: Union[Dict[int, np.ndarray], np.ndarray],
     /,
     *,
+    ax: Optional[plt.Axes] = None,
     title: str = '2D Histogram',
     xlabel: str = 'Spherical Harmonic Degree',
     ylabel: str = 'Power',
@@ -386,7 +387,11 @@ class SphereHelper:
         H = np.ma.masked_where(H == 0, H)
 
         # Plotting
-        fig, ax = plt.subplots(figsize=(10, 6), constrained_layout=True)
+        if ax is None:
+            fig, ax = plt.subplots(figsize=(10, 6), constrained_layout=True)
+        else:
+            # Get the figure associated with the provided axis
+            fig = ax.get_figure()
 
         # Use pcolormesh for efficiency with large matrices
         pc = ax.pcolormesh(xedges, yedges, H.T, cmap=cmap, norm=LogNorm(), shading='auto')
