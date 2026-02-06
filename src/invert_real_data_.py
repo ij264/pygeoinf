@@ -79,7 +79,7 @@ posterior_measure = bi.model_posterior_measure(
 # Calculate pointwise estimates of standard deviation.
 print("Sampling from posterior")
 pointwise_variance = posterior_measure.sample_pointwise_variance(
-    20, parallel=False
+    20, parallel=True, n_jobs=8
 )
 pointwise_std = pointwise_variance.copy()
 pointwise_std.data = np.sqrt(pointwise_std.data)
@@ -107,12 +107,8 @@ prior_powers = model_space._sample_power_measure(prior_measure, 100, parallel=Tr
 print("Sampling Posterior Power...")
 posterior_powers = model_space._sample_power_measure(posterior_measure, 100, parallel=False)
 
-# 2. Create a Matplotlib figure with two subplots
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6), sharey=True)
 
-# 3. Plot Prior
-# Note: Assuming plot_power_spectrum_2d accepts an 'ax' keyword.
-# If it doesn't, we can capture the return and adjust.
 model_space.plot_power_spectrum_2d(prior_powers, ax=ax1)
 ax1.set_title("Prior Power Spectrum")
 ax1.set_xlabel("Spherical Harmonic Degree ($l$)")

@@ -10,6 +10,8 @@ import pygmt as pg
 import matplotlib.pyplot as plt
 import pandas as pd
 from pathlib import Path
+import seaborn as sns
+import pandas as pd
 import pygeoinf as inf
 from pygeoinf.symmetric_space.sphere import Sobolev
 
@@ -116,21 +118,136 @@ fig.colorbar(frame='af+lPosterior Standard Deviation (km)', position='+h+ef', cm
 fig.savefig(f'{FNAME_ROOT}/posterior_mean.png', dpi=150)
 
 # Calculate the power spectrum of the posterior mean and compare to the prior.
+N_SAMPLES = 1000
+DEGREES = [0, 2, 30]
 print("Sampling Prior Power...")
-prior_powers = model_space._sample_power_measure(prior_measure, 1000, parallel=True, n_jobs=8)
+prior_powers = model_space._sample_power_measure(prior_measure, N_SAMPLES, parallel=True, n_jobs=8)
 
 print("Sampling Posterior Power...")
-posterior_powers = model_space._sample_power_measure(posterior_measure, 1000, parallel=True, n_jobs=8)
+posterior_powers = model_space._sample_power_measure(posterior_measure, N_SAMPLES, parallel=True, n_jobs=8)
 
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6), sharey=True)
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6), sharey=True, layout='constrained')
 
-model_space.plot_power_spectrum_2d(prior_powers, ax=ax1)
+# Capture the return to get the 'pc' (mappable) for the colorbar
+_, ax1 = model_space.plot_power_spectrum_2d(prior_powers, ax=ax1)
+# Make sure to return the 'pc' from your function or access it via ax.collections[0]
+pc_last = ax1.collections[0]
+
+_, ax2 = model_space.plot_power_spectrum_2d(posterior_powers, ax=ax2)
+
+# Set titles/labels
 ax1.set_title("Prior Power Spectrum")
-ax1.set_xlabel("Spherical Harmonic Degree ($l$)")
-ax1.set_ylabel("Power")
-
-model_space.plot_power_spectrum_2d(posterior_powers, ax=ax2)
 ax2.set_title("Posterior Power Spectrum")
-ax2.set_xlabel("Spherical Harmonic Degree ($l$)")
-fig.set_layout_engine('constrained')
+
+# Add ONE colorbar for the whole figure
+fig.colorbar(ax2.collections[0], ax=[ax1, ax2], label='Sample Density', location='right')
+
 plt.savefig(f'{FNAME_ROOT}/power_comparison.png', dpi=150)
+
+# Plot histogram of each degre.
+# for degree in DEGREES:
+#     fig, ax = plt.subplots(figsize=(8, 5))
+#     ax.hist(prior_powers[:, degree], bins=30, density=True, alpha=0.7, color='blue')
+#     ax.hist(posterior_powers[:, degree], bins=30, density=True, alpha=0.7, color='orange')
+#     ax.set_title(f'Power Distribution at Degree l={degree}', fontweight='bold')
+#     ax.set_xlabel('Power')
+#     ax.set_ylabel('Counts')
+#     ax.legend(['Prior', 'Posterior'])
+#     plt.savefig(f'{FNAME_ROOT}/power_histogram_l_{degree}.png', dpi=150)
+# 1. Prepare the data into a "Long-Form" DataFrame
+# DEGREES = [2, 8, 30]
+# plot_data = []
+
+# for l in DEGREES:
+#     # Add Prior samples
+#     for p in prior_powers[:, l]:
+#         plot_data.append({'Degree': f'l={l}', 'Power': p, 'Type': 'Prior'})
+#     # Add Posterior samples
+#     for p in posterior_powers[:, l]:
+#         plot_data.append({'Degree': f'l={l}', 'Power': p, 'Type': 'Posterior'})
+
+# print(plot_data)
+# df = pd.DataFrame(plot_data)
+
+# # 2. Plot
+# fig, ax = plt.subplots(figsize=(10, 6))
+
+# sns.violinplot(data=df, x='Degree', y='Power', hue='Type',
+#                split=True, inner="quart", palette={'Prior': 'lightgrey', 'Posterior': 'orange'},
+#                ax=ax)
+
+# ax.set_yscale('log')
+# ax.set_title("Power Distribution Comparison (Prior vs Posterior)", fontweight='bold')
+# ax.set_ylabel("Power ($y$-axis)")
+# ax.grid(axis='y', alpha=0.3)
+
+# plt.savefig(f'{FNAME_ROOT}/power_violin_comparison.png', dpi=150)
+
+fig, ax = plt.subplots(figsize=(10, 6))
+
+# Define x-positions for each degree
+x_centers = np.arange(len(DEGREES))
+width = 0.3  # Width of the "histogram" column
+
+for i, l in enumerate(DEGREES):
+    # Calculate log-bins for this specific degree
+    all_p = np.concatenate([prior_powers[:, l], posterior_powers[:, l]])
+    bins = np.logspace(np.log10(all_p.min()), np.log10(all_p.max()), 40)
+
+    # Prior (Left side)
+    hist_pr, edges = np.histogram(prior_powers[:, l], bins=bins, density=True)
+    # Scale the histogram width to fit in our "bar" slot
+    hist_pr = (hist_pr / hist_pr.max()) * width
+    ax.barh(edges[:-1], -hist_pr, height=np.diff(edges), left=x_centers[i],
+            color='blue', alpha=0.4, label='Prior' if i==0 else "")
+
+    # Posterior (Right side)
+    hist_po, edges = np.histogram(posterior_powers[:, l], bins=bins, density=True)
+    hist_po = (hist_po / hist_po.max()) * width
+    ax.barh(edges[:-1], hist_po, height=np.diff(edges), left=x_centers[i],
+            color='orange', alpha=0.7, label='Posterior' if i==0 else "")
+
+ax.set_yscale('log')
+ax.set_xticks(x_centers)
+ax.set_xticklabels([f'l={l}' for l in DEGREES])
+ax.set_ylabel("Power")
+ax.set_xlabel("Degree / Density")
+ax.legend()
+ax.set_title("Sideways Histograms at Specific Degrees")
+ax.set_ylim(1e-4, 1e1)
+plt.savefig(f'{FNAME_ROOT}/sideways_histograms.png', dpi=150)
+
+data_list = []
+
+for l in DEGREES:
+    # Add Prior samples
+    for p in prior_powers[:, l]:
+        data_list.append({'Degree': f'l={l}', 'Power': p, 'Type': 'Prior'})
+    # Add Posterior samples
+    for p in posterior_powers[:, l]:
+        data_list.append({'Type': 'Posterior', 'Degree': f'l={l}', 'Power': p})
+
+df = pd.DataFrame(data_list)
+
+fig, ax = plt.subplots(figsize=(10, 6))
+
+# The 'split=True' creates the half-prior / half-posterior effect
+sns.violinplot(
+    data=df,
+    x='Degree',
+    y='Power',
+    hue='Type',
+    split=True,
+    inner="quart",      # Shows the median and quartiles
+    density_norm="count", # Scales the width by number of samples
+    ax=ax,
+    fill=False,
+    bw_adjust=0.5
+)
+
+# Force the Log Scale and Limits
+ax.set_yscale('log')
+ax.set_ylim(1e-4, 1e1)
+
+ax.set_title("Power Distribution: Prior vs Posterior", fontweight='bold')
+plt.savefig(f'{FNAME_ROOT}/seaborn_power_comparison.png', dpi=150)
