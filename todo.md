@@ -46,8 +46,8 @@ Two model spaces, given the same prior, converge to the same result.
 
 
 [ ] Pick a prior amplitude of 10 km, and a prior length scale of 200 km. Look at the power spectrum and see how sensitive the the power spectrum is. Picking a high amplitude and rough scale,
-- [ ] Focus on the lower degrees. What we think is that the higher degrees is that the prior dominates.
-- [ ] Generate the degree specific histogram.
-- [ ] Regularly pull from main to see if there are any conflicts.
-- [] Fix log evidence. 
+- [x] Focus on the lower degrees. What we think is that the higher degrees is that the prior dominates.
+- [x] Generate the degree specific histogram.
+- [x] Regularly pull from main to see if there are any conflicts.
+- [] Fix log evidence.
 Dynamic topography is driven by convection, and in convecting systems, the density anomalies organise themselves according to the governing equations. Matt Lees. Take a look at their paper to see the spectra.
