@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pygeoinf"
-version = "1.3.9"
+version = "1.4.0"
 description = "A package for solving geophysical inference and inverse problems"
 authors = ["David Al-Attar and Dan Heathcote"]
 readme = "README.md"
@@ -54,3 +54,5 @@ build-backend = "poetry.core.masonry.api"
 # harmonic degree, ignore the ambiguous variable name warning (E741).
 "pygeoinf/symmetric_space/sphere.py" = ["E741"]
 "pygeoinf/symmetric_space/sh_tools.py" = ["E741"]
+"pygeoinf/symmetric_space/wigner.py" = ["E741"]
+"pygeoinf/rough_work/*" = ["E741"]
