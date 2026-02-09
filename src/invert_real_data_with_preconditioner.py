@@ -14,6 +14,7 @@ import seaborn as sns
 import pandas as pd
 import pygeoinf as inf
 from pygeoinf.symmetric_space.sphere import Sobolev
+from time import time
 from tqdm import tqdm
 
 pg.config(MAP_FRAME_TYPE="plain")
@@ -28,7 +29,7 @@ STD_CMAP = "/space/ij264/earth-tunya/cpts/vik_DT_error.cpt"
 
 # --- Configuration ---
 DATA_PATH = Path("/space/ij264/earth-tunya/geoinf_analysis/data/global.xyz")
-N_DATAS = [10, 100, 1000, 10000]
+N_DATAS = [10, 100]
 LMAX_FULL = 64
 LMAX_PRE = 16
 MODEL_SPACE_ORDER = 2.0
@@ -86,15 +87,18 @@ for N_DATA in tqdm(N_DATAS):
 
     pre_inversion = inf.LinearBayesianInversion(pre_forward_prob, pre_prior)
     solver = inf.EigenSolver(parallel=False)
-    inv_normal_pre = solver(pre_inversion.normal_operator)
-
+    pre_inversion_normal_op = pre_inversion.normal_operator.extract_diagonal(parallel=True, n_jobs=5)
+    pre_inversion_normal_op[pre_inversion_normal_op < 1e-12] = 1.0
+    preconditioner = inf.DiagonalSparseMatrixLinearOperator.from_diagonal_values(
+        pre_inversion.data_space, pre_inversion.data_space, 1.0 / pre_inversion_normal_op
+    )
     # --- Final Inversion ---
     print("Solving the linear system via CG...")
     bi = inf.LinearBayesianInversion(forward_prob, prior_measure)
     posterior_measure = bi.model_posterior_measure(
         data["z"].values,
         inf.CGMatrixSolver(),
-        preconditioner=inv_normal_pre,
+        preconditioner=preconditioner,
     )
 
     # Calculate pointwise estimates of standard deviation.
