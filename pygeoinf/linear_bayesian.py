@@ -243,7 +243,8 @@ class LinearBayesianInversion(LinearInversion):
 
         misfit = data_space.inner_product(shifted_data, inverse_N_operator(shifted_data))
 
-        log_det_N = N.log_determinant()
+        # ADD THIS. 
+        # log_det_N = N.log_determinant()
 
         n = data_space.dimension
         return -0.5 * (misfit + log_det_N + n * np.log(2 * np.pi))

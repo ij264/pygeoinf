@@ -22,7 +22,7 @@ Key Classes
 """
 
 from __future__ import annotations
-from typing import Callable, Any, List, Optional, Tuple, TYPE_CHECKING, Union, Dict
+from typing import Callable, Any, List, Optional, Tuple, TYPE_CHECKING, Union, Dict, Iterable
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
@@ -614,7 +614,8 @@ class SphereHelper:
         # Ensure only integer degrees on X-axis
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
 
-        fig.colorbar(pc, label='Sample Density')
+        if ax is None:
+            fig.colorbar(pc, label='Sample Density')
 
         return fig, ax
 
@@ -673,29 +674,35 @@ class SphereHelper:
         )
 
     def _sample_power_measure(self,
-                              measure,
-                              n_samples: int,
-                              /,
-                              *,
-                              parallel: bool = True,
-                              n_jobs: Optional[int] = None) -> np.ndarray:
-        """
-        Calculates power spectrum for a given measure by sampling.
-        """
+                          measure,
+                          n_samples: int,
+                          /,
+                          *,
+                          degrees: Optional[Iterable[int]] = None,
+                          parallel: bool = True,
+                          n_jobs: Optional[int] = None) -> np.ndarray:
+
         if parallel:
             configure_threading(n_threads=1)
+
         samples = measure.samples(n_samples, parallel=parallel, n_jobs=n_jobs)
 
         try:
-            powers = [
+            # Calculate full spectrum
+            powers_list = [
                 self.to_coefficients(sample).spectrum(convention='l2norm')
                 for sample in samples
             ]
+            powers = np.array(powers_list) # Shape: (n_samples, total_degrees)
+
+            if degrees is not None:
+                idx = np.array(list(degrees))
+                powers = powers[:, idx]
+
         finally:
             if parallel:
                 configure_threading(-1)
 
-        powers = np.array(powers)
         return powers
 
 class Lebesgue(SphereHelper, HilbertModule, AbstractInvariantLebesgueSpace):
