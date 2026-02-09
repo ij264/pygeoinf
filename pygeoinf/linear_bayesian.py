@@ -225,29 +225,34 @@ class LinearBayesianInversion(LinearInversion):
             preconditioner: An optional preconditioner.
         """
         data_space = self.data_space
-        forward_operator = self.forward_problem.forward_operator
 
         N = self.normal_operator
 
-        shifted_data = data_space.subtract(
-            data, forward_operator(self.model_prior_measure.expectation)
+        # Compute Inverse get eigenvalues to calculate log-determinant.
+        inv_N_operator = solver(N)
+
+        eigenvalues = inv_N_operator._eigenvalues
+
+        # Calculate log-determinant based on solver's rtol to ensure numerical stability.
+        threshold = solver._rtol * np.max(np.abs(eigenvalues))
+        significant_evs = eigenvalues[np.abs(eigenvalues) > threshold]
+        log_det = np.sum(np.log(significant_evs))
+
+        # Calculate misfit.
+        residual = data_space.subtract(
+            data,
+            self.forward_problem.forward_operator(self.model_prior_measure.expectation),
         )
         if self.forward_problem.data_error_measure_set:
-            error_expectation = self.forward_problem.data_error_measure.expectation
-            shifted_data = data_space.subtract(shifted_data, error_expectation)
+            residual = data_space.subtract(
+                residual, self.forward_problem.data_error_measure.expectation
+            )
 
-        if isinstance(solver, IterativeLinearSolver):
-            inverse_N_operator = solver(N, preconditioner=preconditioner)
-        else:
-            inverse_N_operator = solver(N)
+        misfit = data_space.inner_product(residual, inv_N_operator(residual))
 
-        misfit = data_space.inner_product(shifted_data, inverse_N_operator(shifted_data))
-
-        # ADD THIS. 
-        # log_det_N = N.log_determinant()
-
-        n = data_space.dimension
-        return -0.5 * (misfit + log_det_N + n * np.log(2 * np.pi))
+        # Calculate log-evidence.
+        n = data_space.dim
+        return -0.5 * (misfit + log_det + n * np.log(2 * np.pi))
 
 class ConstrainedLinearBayesianInversion(LinearInversion):
     """

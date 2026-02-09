@@ -218,6 +218,7 @@ class EigenSolver(DirectLinearSolver):
             np.abs(eigenvalues) > threshold,
             np.reciprocal(eigenvalues),
             0.0,
+            
         )
 
         def matvec(cy: np.ndarray) -> np.ndarray:
@@ -229,10 +230,11 @@ class EigenSolver(DirectLinearSolver):
             (operator.domain.dim, operator.codomain.dim), matvec=matvec, rmatvec=matvec
         )
 
-        return LinearOperator.from_matrix(
+        inverse_operator = LinearOperator.from_matrix(
             operator.domain, operator.domain, inverse_matrix, galerkin=self._galerkin
         )
-
+        inverse_operator._eigenvalues = inv_eigenvalues  # Store for potential diagnostics
+        return inverse_operator
 
 class IterativeLinearSolver(LinearSolver):
     """
