@@ -681,28 +681,48 @@ class SphereHelper:
                           degrees: Optional[Iterable[int]] = None,
                           parallel: bool = True,
                           n_jobs: Optional[int] = None) -> np.ndarray:
-
+        implicit_calculation = True
+        if n_samples > measure.covariance.codomain.dim:
+            implicit_calculation = False
         if parallel:
             configure_threading(n_threads=1)
 
-        samples = measure.samples(n_samples, parallel=parallel, n_jobs=n_jobs)
+        powers = {}
+        if not implicit_calculation:
+            print('Calculating the covariance matrix for the maximum degree...')
+            max_degree_covariance_matrix = measure.covariance.matrix(dense=True,
+                                                            parallel=parallel,
+                                                            n_jobs=n_jobs)
+            max_degree_expectation = np.zeros(max_degree_covariance_matrix.shape[0])
+            print('Done.')
+            for degree in degrees if degrees is not None else range(self.lmax + 1):
+                print(f'Sampling and calculating power for degree {degree}...')
+                start, end = degree**2, (degree + 1) ** 2
+                degree_expectation = max_degree_expectation[start:end]
+                degree_covariance = max_degree_covariance_matrix[start:end, start:end]
 
-        try:
-            # Calculate full spectrum
+                samples = np.random.multivariate_normal(
+                                mean=degree_expectation,
+                                cov=degree_covariance,
+                                size=n_samples,
+                            )
+
+                power_at_degree = np.sum(samples**2, axis=1)
+                powers[degree] = power_at_degree
+            print('Finished sampling and power calculation.')
+        else:
+            print('Drawing samples implicitly.')
+            samples = measure.samples(n_samples, parallel=parallel, n_jobs=n_jobs)
+
             powers_list = [
                 self.to_coefficients(sample).spectrum(convention='l2norm')
                 for sample in samples
             ]
             powers = np.array(powers_list) # Shape: (n_samples, total_degrees)
 
-            if degrees is not None:
-                idx = np.array(list(degrees))
-                powers = powers[:, idx]
-
-        finally:
             if parallel:
                 configure_threading(-1)
-
+        print('returning powers.')
         return powers
 
 class Lebesgue(SphereHelper, HilbertModule, AbstractInvariantLebesgueSpace):
